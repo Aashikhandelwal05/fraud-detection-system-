@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # FastAPI Application
+  fraud-api:
+    build: .
+    container_name: fraud-detection-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./mlruns:/app/mlruns
+    environment:
+      - PYTHONPATH=/app
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Streamlit Dashboard
+  fraud-dashboard:
+    build: .
+    container_name: fraud-detection-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+    environment:
+      - PYTHONPATH=/app
+    command: streamlit run src/dashboard/app.py --server.port 8501 --server.address 0.0.0.0
+    depends_on:
+      - fraud-api
+    restart: unless-stopped
+
+  # MLflow Tracking Server (Optional)
+  mlflow:
+    build: .
+    container_name: fraud-detection-mlflow
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/app/mlruns
+    environment:
+      - PYTHONPATH=/app
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri file:./mlruns
+    restart: unless-stopped
+
+networks:
+  default:
+    name: fraud-detection-network
